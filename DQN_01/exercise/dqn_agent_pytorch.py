@@ -2,9 +2,11 @@ import numpy as np
 import random
 from collections import namedtuple, deque
 
-from model import QNetwork
+from model_pytorch import QNetwork
 
-import tensorflow as tf
+import torch
+import torch.nn.functional as F
+import torch.optim as optim
 
 BUFFER_SIZE = int(1e5)  # replay buffer size
 BATCH_SIZE = 64         # minibatch size
@@ -13,7 +15,7 @@ TAU = 1e-3              # for soft update of target parameters
 LR = 5e-4               # learning rate 
 UPDATE_EVERY = 4        # how often to update the network
 
-#device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class Agent():
     """Interacts with and learns from the environment."""
@@ -32,11 +34,9 @@ class Agent():
         self.seed = random.seed(seed)
 
         # Q-Network
-        optimizer = tf.train.Adam(lr = LR)
-        self.qnetwork_local = QNetwork(state_size, action_size, 
-            optimizer = optimizer, seed, name = 'local')
-        self.qnetwork_target = QNetwork(state_size, action_size, 
-            optimizer = optimzer, seed, name = 'target')
+        self.qnetwork_local = QNetwork(state_size, action_size, seed).to(device)
+        self.qnetwork_target = QNetwork(state_size, action_size, seed).to(device)
+        self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         # Replay memory
         self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
