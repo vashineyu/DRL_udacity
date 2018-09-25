@@ -13,14 +13,11 @@ TAU = 1e-3              # for soft update of target parameters
 LR = 5e-4               # learning rate 
 UPDATE_EVERY = 4        # how often to update the network
 
-#device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 class Agent():
     """Interacts with and learns from the environment."""
 
     def __init__(self, state_size, action_size, seed):
         """Initialize an Agent object.
-        
         Params
         ======
             state_size (int): dimension of each state
@@ -32,12 +29,11 @@ class Agent():
         self.seed = random.seed(seed)
 
         # Q-Network
-        optimizer = tf.train.Adam(lr = LR)
-        self.qnetwork_local = QNetwork(state_size, action_size, 
-            optimizer = optimizer, seed, name = 'local')
-        self.qnetwork_target = QNetwork(state_size, action_size, 
-            optimizer = optimzer, seed, name = 'target')
-
+        optimizer = tf.train.RMSPropOptimizer(learning_rate= LR)
+        self.Qnetwork = QNetwork(state_size = state_size, 
+                                 action_size = action_size, 
+                                 optimizer = optimizer,
+                                 gamma=GAMMA)
         # Replay memory
         self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
         # Initialize time step (for updating every UPDATE_EVERY steps)
@@ -53,7 +49,7 @@ class Agent():
             # If enough samples are available in memory, get random subset and learn
             if len(self.memory) > BATCH_SIZE:
                 experiences = self.memory.sample()
-                self.learn(experiences, GAMMA)
+                self.learn(experiences)
 
     def act(self, state, eps=0.):
         """Returns actions for given state as per current policy.
@@ -63,19 +59,14 @@ class Agent():
             state (array_like): current state
             eps (float): epsilon, for epsilon-greedy action selection
         """
-        state = torch.from_numpy(state).float().unsqueeze(0).to(device)
-        self.qnetwork_local.eval()
-        with torch.no_grad():
-            action_values = self.qnetwork_local(state)
-        self.qnetwork_local.train()
-
         # Epsilon-greedy action selection
         if random.random() > eps:
-            return np.argmax(action_values.cpu().data.numpy())
+            action_value = self.Qnetwork.get_action(state)
+            return np.argmax(action_values)
         else:
             return random.choice(np.arange(self.action_size))
 
-    def learn(self, experiences, gamma):
+    def learn(self, experiences):
         """Update value parameters using given batch of experience tuples.
 
         Params
@@ -83,26 +74,16 @@ class Agent():
             experiences (Tuple[torch.Variable]): tuple of (s, a, r, s', done) tuples 
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones = experiences
+        #states, actions, rewards, next_states, dones = experiences
 
         ## TODO: compute and minimize the loss
         "*** YOUR CODE HERE ***"
+        current_loss = self.Qnetwork.train(experiences)
+        print('\rCurrent loss: %.3f' % current_loss)
+        sys.stdout.flush()
 
         # ------------------- update target network ------------------- #
-        self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)                     
-
-    def soft_update(self, local_model, target_model, tau):
-        """Soft update model parameters.
-        θ_target = τ*θ_local + (1 - τ)*θ_target
-
-        Params
-        ======
-            local_model (PyTorch model): weights will be copied from
-            target_model (PyTorch model): weights will be copied to
-            tau (float): interpolation parameter 
-        """
-        for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
-            target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
+        self.Qnetwork.update_target_network()
 
 
 class ReplayBuffer:
@@ -133,11 +114,11 @@ class ReplayBuffer:
         """Randomly sample a batch of experiences from memory."""
         experiences = random.sample(self.memory, k=self.batch_size)
 
-        states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(device)
-        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(device)
-        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(device)
-        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(device)
-        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
+        states = np.vstack([e.state for e in experiences if e is not None])
+        actions = np.vstack([e.action for e in experiences if e is not None])
+        rewards = np.vstack([e.reward for e in experiences if e is not None])
+        next_states = np.vstack([e.next_state for e in experiences if e is not None])
+        dones = np.vstack([e.done for e in experiences if e is not None])
   
         return (states, actions, rewards, next_states, dones)
 
