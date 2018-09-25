@@ -30,8 +30,8 @@ class Agent():
         self.seed = random.seed(seed)
 
         # Q-Network
-        #optimizer = tf.train.RMSPropOptimizer(learning_rate= LR)
-        optimizer = tf.train.AdamOptimizer(learning_rate = LR)
+        optimizer = tf.train.RMSPropOptimizer(learning_rate= LR)
+        #optimizer = tf.train.AdamOptimizer(learning_rate = LR)
         self.Qnetwork = QNetwork(state_size = state_size, 
                                  action_size = action_size, 
                                  optimizer = optimizer,
@@ -44,14 +44,17 @@ class Agent():
     def step(self, state, action, reward, next_state, done):
         # Save experience in replay memory
         self.memory.add(state, action, reward, next_state, done)
-        
+           
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
         if self.t_step == 0:
+            # ------------------- update target network ------------------- #
             # If enough samples are available in memory, get random subset and learn
             if len(self.memory) > BATCH_SIZE:
                 experiences = self.memory.sample()
                 self.learn(experiences)
+                self.Qnetwork.update_target_network()
+            
 
     def act(self, state, eps=0.):
         """Returns actions for given state as per current policy.
@@ -85,12 +88,7 @@ class Agent():
         ## TODO: compute and minimize the loss
         "*** YOUR CODE HERE ***"
         current_loss = self.Qnetwork.train(experiences)
-        #print('\rCurrent loss: %.3f' % current_loss)
-        #sys.stdout.flush()
-
-        # ------------------- update target network ------------------- #
-        self.Qnetwork.update_target_network()
-
+        
 
 class ReplayBuffer:
     """Fixed-size buffer to store experience tuples."""

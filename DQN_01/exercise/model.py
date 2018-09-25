@@ -21,7 +21,6 @@ class QNetwork():
         print("Action size: %i" % self.action_size)
         # Initalize
         tf.reset_default_graph()
-        np.random.seed(seed)
         self.sess = tf.Session() # Prepare a tensorflow sesion
 
         # Prepared placeholders
@@ -35,7 +34,7 @@ class QNetwork():
 
         # Build networks
         with tf.variable_scope("Qtable"):
-            neurons_of_layers = [64, 64]
+            neurons_of_layers = [64, 64, 64]
             # Use to update/train the agent's brain
             # Used to get Q(s, a)
             self.q_local = self._build_model(x = self.state, 
@@ -53,11 +52,12 @@ class QNetwork():
         self.params_replace = [tf.assign(old, new) for old, new in zip(self.localnet_params, self.targetnet_params)]
 
         # Compute loss (TD-loss), TD_error = lr * ((reward + gamma * max(Q(s',A)) - Q(s,a))
-        td_target = self.reward + self.gamma * tf.reduce_max(self.q_target, axis = -1) * (1. - self.done )
-        td_expect = tf.reduce_sum(self.q_local*self.action_onehot, axis = -1)
-        self.loss = tf.reduce_mean(tf.squared_difference(td_target, td_expect), axis = -1)
-        with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-            self.update_ops = self.optim.minimize(self.loss, var_list = self.localnet_params)
+        td_target = self.reward + self.gamma * tf.reduce_max(self.q_target, axis = -1) * (1 - self.done)
+        td_expect = tf.reduce_sum(tf.multiply(self.q_local,self.action_onehot), axis = -1)
+        self.loss = tf.reduce_mean(tf.squared_difference(td_target, td_expect))
+        
+        #with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
+        self.update_ops = self.optim.minimize(self.loss)
 
         # Finally, initalize weights
         self.saver = tf.train.Saver()
@@ -97,8 +97,8 @@ class QNetwork():
         Generate action from localnet
         get the action with the highest state-action pair
         """
-        action = np.argmax(self.sess.run(self.q_local, feed_dict = {self.state:state}))
-        return action
+        actions_value = self.sess.run(self.q_local, feed_dict = {self.state:state})
+        return actions_value
 
     def train(self, batch):
         """
