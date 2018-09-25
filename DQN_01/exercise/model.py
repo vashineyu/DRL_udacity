@@ -31,7 +31,7 @@ class QNetwork():
         self.reward = tf.placeholder(shape = [None, 1], dtype = tf.float32) # reward
         self.done = tf.placeholder(shape = [None, 1], dtype = tf.float32) # done or not
 
-        self.action = tf.one_hot(self.action, depth = action_size)
+        self.action_onehot = tf.one_hot(self.action, depth = action_size)
 
         # Build networks
         with tf.variable_scope("Qtable"):
@@ -53,8 +53,8 @@ class QNetwork():
         self.params_replace = [tf.assign(old, new) for old, new in zip(self.localnet_params, self.targetnet_params)]
 
         # Compute loss (TD-loss), TD_error = lr * ((reward + gamma * max(Q(s',A)) - Q(s,a))
-        td_target = self.reward + self.gamma * tf.reduce_max(self.q_target, axis = -1) * (1. - self.done)
-        td_expect = tf.reduce_sum(self.q_local*self.action, axis = -1)
+        td_target = self.reward + self.gamma * tf.reduce_max(self.q_target, axis = -1) * (1. - self.done )
+        td_expect = tf.reduce_sum(self.q_local*self.action_onehot, axis = -1)
         self.loss = tf.reduce_mean(tf.squared_difference(td_target, td_expect))
         with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
             self.update_ops = self.optim.minimize(self.loss, var_list = self.localnet_params)

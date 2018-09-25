@@ -1,6 +1,7 @@
 import numpy as np
 import random
 from collections import namedtuple, deque
+import sys
 
 from model import QNetwork
 
@@ -59,9 +60,13 @@ class Agent():
             state (array_like): current state
             eps (float): epsilon, for epsilon-greedy action selection
         """
+        if len(state.shape) == 1:
+            # make it batch-like
+            state = state[np.newaxis, :]
+            
         # Epsilon-greedy action selection
         if random.random() > eps:
-            action_value = self.Qnetwork.get_action(state)
+            action_values = self.Qnetwork.get_action(state)
             return np.argmax(action_values)
         else:
             return random.choice(np.arange(self.action_size))
@@ -79,8 +84,8 @@ class Agent():
         ## TODO: compute and minimize the loss
         "*** YOUR CODE HERE ***"
         current_loss = self.Qnetwork.train(experiences)
-        print('\rCurrent loss: %.3f' % current_loss)
-        sys.stdout.flush()
+        #print('\rCurrent loss: %.3f' % current_loss)
+        #sys.stdout.flush()
 
         # ------------------- update target network ------------------- #
         self.Qnetwork.update_target_network()
