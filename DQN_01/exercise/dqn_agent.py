@@ -30,7 +30,8 @@ class Agent():
         self.seed = random.seed(seed)
 
         # Q-Network
-        optimizer = tf.train.RMSPropOptimizer(learning_rate= LR)
+        #optimizer = tf.train.RMSPropOptimizer(learning_rate= LR)
+        optimizer = tf.train.AdamOptimizer(learning_rate = LR)
         self.Qnetwork = QNetwork(state_size = state_size, 
                                  action_size = action_size, 
                                  optimizer = optimizer,

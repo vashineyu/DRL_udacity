@@ -35,7 +35,7 @@ class QNetwork():
 
         # Build networks
         with tf.variable_scope("Qtable"):
-            neurons_of_layers = [64, 64, 64]
+            neurons_of_layers = [64, 64]
             # Use to update/train the agent's brain
             # Used to get Q(s, a)
             self.q_local = self._build_model(x = self.state, 
@@ -55,7 +55,7 @@ class QNetwork():
         # Compute loss (TD-loss), TD_error = lr * ((reward + gamma * max(Q(s',A)) - Q(s,a))
         td_target = self.reward + self.gamma * tf.reduce_max(self.q_target, axis = -1) * (1. - self.done )
         td_expect = tf.reduce_sum(self.q_local*self.action_onehot, axis = -1)
-        self.loss = tf.reduce_mean(tf.squared_difference(td_target, td_expect))
+        self.loss = tf.reduce_mean(tf.squared_difference(td_target, td_expect), axis = -1)
         with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
             self.update_ops = self.optim.minimize(self.loss, var_list = self.localnet_params)
 
@@ -127,12 +127,12 @@ class QNetwork():
         """
         Save the model (save localnet, we don't save target net)
         """
-        saver.save(self.sess, 'dqn.ckpt' if model_name is None else model_name)
+        self.saver.save(self.sess, 'dqn.ckpt' if model_name is None else model_name)
         print("model saved")
 
     def load_model(self, model_name = None):
         """
         Load the model
         """
-        saver.restore(self.sess, 'dqn.ckpt' if model_name is None else model_name)
+        self.saver.restore(self.sess, 'dqn.ckpt' if model_name is None else model_name)
         print("model loaded")
