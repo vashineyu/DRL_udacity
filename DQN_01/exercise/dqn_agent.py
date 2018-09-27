@@ -12,7 +12,7 @@ BATCH_SIZE = 64         # minibatch size
 GAMMA = 0.99            # discount factor
 TAU = 1e-3              # for soft update of target parameters
 LR = 5e-4               # learning rate 
-UPDATE_EVERY = 4        # how often to update the network
+UPDATE_EVERY = 25        # how often to update the network
 
 class Agent():
     """Interacts with and learns from the environment."""
@@ -30,12 +30,12 @@ class Agent():
         self.seed = random.seed(seed)
 
         # Q-Network
-        optimizer = tf.train.RMSPropOptimizer(learning_rate= LR)
-        #optimizer = tf.train.AdamOptimizer(learning_rate = LR)
+        #optimizer = tf.train.RMSPropOptimizer(learning_rate= LR)
+        optimizer = tf.train.AdamOptimizer(learning_rate = LR)
         self.Qnetwork = QNetwork(state_size = state_size, 
                                  action_size = action_size, 
                                  optimizer = optimizer,
-                                 gamma=GAMMA)
+                                 gamma=GAMMA, tau = TAU, minibatch_size = BATCH_SIZE)
         # Replay memory
         self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
         # Initialize time step (for updating every UPDATE_EVERY steps)
@@ -44,18 +44,17 @@ class Agent():
     def step(self, state, action, reward, next_state, done):
         # Save experience in replay memory
         self.memory.add(state, action, reward, next_state, done)
-           
+        
+        if len(self.memory) > BATCH_SIZE:
+            experiences = self.memory.sample()
+            self.learn(experiences)
+            
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
         if self.t_step == 0:
             # ------------------- update target network ------------------- #
-            # If enough samples are available in memory, get random subset and learn
-            if len(self.memory) > BATCH_SIZE:
-                experiences = self.memory.sample()
-                self.learn(experiences)
-                self.Qnetwork.update_target_network()
+            self.Qnetwork.update_target_network()
             
-
     def act(self, state, eps=0.):
         """Returns actions for given state as per current policy.
         

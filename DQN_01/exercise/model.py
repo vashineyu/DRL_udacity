@@ -3,7 +3,7 @@ import numpy as np
 
 class QNetwork():
     """Actor (Policy) Model."""
-    def __init__(self, state_size, action_size, optimizer, gamma = 0.9, seed = 42):
+    def __init__(self, state_size, action_size, optimizer, gamma = 0.9, seed = 42, minibatch_size = 64, tau = 1e-3):
         """Initialize parameters and build model.
         Params
         ======
@@ -14,7 +14,6 @@ class QNetwork():
         "*** YOUR CODE HERE ***"
         self.state_size = state_size
         self.action_size = action_size
-        self.optim = optimizer
         self.gamma = gamma
 
         print("State size: %i" % self.state_size)
@@ -26,15 +25,14 @@ class QNetwork():
         # Prepared placeholders
         self.state = tf.placeholder(shape = [None, self.state_size], dtype = tf.float32) # input: S
         self.next_state = tf.placeholder(shape = [None, self.state_size], dtype = tf.float32) # input: S'
-        self.action = tf.placeholder(shape = [None, 1], dtype = tf.int32) # action
-        self.reward = tf.placeholder(shape = [None, 1], dtype = tf.float32) # reward
-        self.done = tf.placeholder(shape = [None, 1], dtype = tf.float32) # done or not
-
-        self.action_onehot = tf.one_hot(self.action, depth = action_size)
+        self.action = tf.placeholder(shape = [None], dtype = tf.int32) # action
+        self.reward = tf.placeholder(shape = [None], dtype = tf.float32) # reward
+        self.done = tf.placeholder(shape = [None], dtype = tf.float32) # done or not
+        #self.action_onehot = tf.one_hot(self.action, depth = action_size)
 
         # Build networks
         with tf.variable_scope("Qtable"):
-            neurons_of_layers = [64, 64, 64]
+            neurons_of_layers = [64, 64]
             # Use to update/train the agent's brain
             # Used to get Q(s, a)
             self.q_local = self._build_model(x = self.state, 
@@ -49,15 +47,16 @@ class QNetwork():
         # Handlers of parameters
         self.localnet_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope = 'Qtable/local')
         self.targetnet_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope = 'Qtable/target')
-        self.params_replace = [tf.assign(old, new) for old, new in zip(self.localnet_params, self.targetnet_params)]
+        self.params_replace = [tf.assign(old, new) for old, new in zip(self.targetnet_params, self.localnet_params)]
 
-        # Compute loss (TD-loss), TD_error = lr * ((reward + gamma * max(Q(s',A)) - Q(s,a))
-        td_target = self.reward + self.gamma * tf.reduce_max(self.q_target, axis = -1) * (1 - self.done)
-        td_expect = tf.reduce_sum(tf.multiply(self.q_local,self.action_onehot), axis = -1)
-        self.loss = tf.reduce_mean(tf.squared_difference(td_target, td_expect))
+        # loss
+        targets = self.reward + (1.-self.done) * self.gamma * tf.gather_nd(self.q_target, tf.stack((tf.range(minibatch_size), tf.cast(tf.argmax(self.q_local, axis = 1), tf.int32)), axis = 1))
+        estimated = tf.gather_nd(self.q_local, tf.stack((tf.range(minibatch_size), self.action), axis = 1))
+                                                                      
+        self.loss = tf.reduce_mean(tf.square(targets - estimated))
         
         #with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-        self.update_ops = self.optim.minimize(self.loss)
+        self.update_ops = optimizer.minimize(self.loss)
 
         # Finally, initalize weights
         self.saver = tf.train.Saver()
@@ -109,11 +108,14 @@ class QNetwork():
             - loss
         """
         state, action, reward, next_state, done = batch
+        
+        # Compute loss (TD-loss), TD_error = lr * ((reward + gamma * max(Q(s',A)) - Q(s,a))
         current_loss, _ = self.sess.run([self.loss, self.update_ops], feed_dict= {self.state:state,
-                                                                                  self.action: action,
-                                                                                  self.reward: reward,
                                                                                   self.next_state: next_state,
-                                                                                  self.done: done})
+                                                                                  self.action: action.squeeze(),
+                                                                                  self.reward: reward.squeeze(),
+                                                                                  self.done: done.squeeze()})
+        
         return current_loss
 
     def update_target_network(self):
@@ -121,7 +123,7 @@ class QNetwork():
         Swap memory from localnet to targetnet,
         simply session run the replacement ops
         """
-        self.sess.run(self.params_replace)
+        _ = self.sess.run(self.params_replace)
 
     def save_model(self, model_name = None):
         """
